@@ -71,7 +71,10 @@ at readout time**, not during accumulation. The accumulator holds the full
 unrounded sum.
 
 Let `q = floor(snapshot / 256)` and `r = snapshot − 256·q`, so that
-`0 ≤ r ≤ 255` — including for negative snapshots. The rounded value is:
+`0 ≤ r ≤ 255` — including for negative snapshots. Use an **arithmetic**
+right shift by 8 for `q`; the remainder `r` is always the lower 8 bits of
+the snapshot (`snapshot[7:0]`), which yields a value in `0..255` even when
+the snapshot is negative. The rounded value is:
 
 - `q` if `r < 128`;
 - `q + 1` if `r > 128`;
@@ -82,7 +85,9 @@ Do **not** use round-half-up (always round up on tie).
 **Saturation — applied after rounding.** The rounded value is then clamped
 to the signed 16-bit range `[−32768, +32767]`. Note the order: rounding is
 performed first and may itself carry the value out of the 16-bit range;
-saturation applies to the **rounded** value.
+saturation applies to the **rounded** value. A rounded value of exactly
+`−32768` does **not** count as saturation — `ovf` stays unchanged. Only values
+**strictly outside** `[−32768, 32767]` set `ovf`.
 
 **Registration and hold.** `res` and `res_valid` are registered outputs. In
 cycle *t+1*, `res_valid` is 1 and `res` carries the rounded, saturated
@@ -97,6 +102,8 @@ Worked examples (`snapshot → res`):
 | 640      | 2  | 128 | 2   | tie, q even → stays       |
 | 896      | 3  | 128 | 4   | tie, q odd → rounds up    |
 | −384     | −2 | 128 | −2  | tie, q even → stays       |
+| −640     | −3 | 128 | −2  | tie, q odd → toward +inf  |
+| 288      | 1  | 32  | 1   | 3×96 accumulates; not 0   |
 
 ## 5. Overflow flag
 
